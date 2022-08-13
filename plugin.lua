@@ -15,7 +15,7 @@ SAMELINE_SPACING = 5               -- value determining spacing between GUI item
 DEFAULT_WIDGET_HEIGHT = 26         -- value determining the height of GUI widgets
 DEFAULT_WIDGET_WIDTH = 120         -- value determining the width of GUI widgets
 PADDING_WIDTH = 8                  -- value determining window and frame padding
-PLUGIN_WINDOW_SIZE = {500, 500}    -- dimensions of the plugin window
+PLUGIN_WINDOW_SIZE = {500, 600}    -- dimensions of the plugin window
 LANE_BUTTON_SIZE = {30, 30}        -- dimensions of the lane button
 
 ---------------------------------------------------------------------------------------------------
@@ -74,6 +74,9 @@ function createMenu()
         selectedKeyframeNote = 1,
         currentKeyframe = 1,
         keyframeDistance = 10000,
+        noteInfoTextDump = "",
+        dumpInfo = false,
+        noteInfoImport = "",
         debugText = "I'm debuggy"
     }
     imgui.PushItemWidth(150)
@@ -83,7 +86,7 @@ function createMenu()
     addSeparator()
     addKeyframeNotes(vars)
     imgui.SameLine()
-    resetNotesButton(vars)
+    resetNotesButton(vars, false)
     displayLaneNoteCounts(vars)
     imgui.Columns(2, "notes", false)
     displayKeyframeNotes(vars)
@@ -94,7 +97,8 @@ function createMenu()
     --navigateKeyframes(vars)
     addSeparator()
     buttonThatDoesThing(vars)
-    imgui.Text(vars.debugText)
+    imgui.TextWrapped(vars.debugText)
+    noteInfoDump(vars)
     saveStateVariables(vars)
 end
 
@@ -191,8 +195,8 @@ function chooseNumKeyframes(vars)
     vars.numKeyframes = clampToInterval(vars.numKeyframes, 1, 999)
 end
 
-function resetNotesButton(vars)
-    if not imgui.Button("Clear/reset keyframe notes") then return end
+function resetNotesButton(vars, resetAnyways)
+    if not (imgui.Button("Clear/reset keyframe notes") or resetAnyways) then return end
     vars.keyframeNotes = {}
     vars.laneCounts = zeros(map.GetKeyCount())
     vars.selectedKeyframeNote = 1
@@ -225,6 +229,7 @@ end
 function addKeyframeNotes(vars)
     if not imgui.Button("Add selected notes to pool") then return end
     for i, hitObject in pairs(state.SelectedHitObjects) do
+        --[[
         local keyframeNote = {
             time = hitObject.StartTime,
             lane = hitObject.Lane,
@@ -232,6 +237,8 @@ function addKeyframeNotes(vars)
             position = 0
         }
         table.insert(vars.keyframeNotes, keyframeNote)
+        --]]
+       table.insert(vars.keyframeNotes, createKeyframeNote(hitObject.StartTime,  hitObject.Lane, 1, 0))
     end
     vars.laneCounts = zeros(map.GetKeyCount())
     local hash = {}
@@ -298,8 +305,11 @@ function buttonThatDoesThing(vars)
         local totalDifference = keyframeDifference * vars.keyframeDistance + positionDifference
         local sv = 64 * totalDifference
         local lastTime = vars.keyframeNotes[i - 1].time
-        addSVToList(svs, lastTime, sv)
-        addSVToList(svs, (lastTime + 1/64), 0)
+        local nextTime =  vars.keyframeNotes[i].time
+        if (lastTime ~= nextTime) and (positionDifference ~= 0) then
+            addSVToList(svs, lastTime, sv)
+            addSVToList(svs, (lastTime + 1/64), 0)
+        end
         lastKeyframe = nextKeyframe
         lastPosition = nextPosition
     end
@@ -308,5 +318,43 @@ function buttonThatDoesThing(vars)
 end
 
 function addSVToList(list, time, svValue)
-     table.insert(list, utils.CreateScrollVelocity(time, svValue))
+    table.insert(list, utils.CreateScrollVelocity(time, svValue))
+end
+
+function noteInfoDump(vars)
+    if #vars.keyframeNotes == 0 then return end
+    _, vars.dumpInfo = imgui.Checkbox("show stuff", vars.dumpInfo)
+    if not vars.dumpInfo then return end
+    vars.noteInfoTextDump = ""
+    for i = 1, #vars.keyframeNotes do
+        local note = vars.keyframeNotes[i]
+        vars.noteInfoTextDump = vars.noteInfoTextDump.."{ "..note.time.." | "..note.lane.." | "..note.keyframe.." | "..note.position.." }\n"
+    end
+    imgui.InputTextMultiline("infoDump", vars.noteInfoTextDump, 999999, {100, 100}, imgui_input_text_flags.ReadOnly)
+    _, vars.noteInfoImport = imgui.InputTextMultiline("infoImport", vars.noteInfoImport, 999999, {100, 100})
+    imgui.SameLine()
+    if not imgui.Button("Parse", {100, 50}) then return end
+    resetNotesButton(vars, true)
+    local maxKeyframe = 1
+    for noteInfo in string.gmatch(vars.noteInfoImport, "{.-}.-") do
+        local regex = "%d+"
+        local captures = {}
+        for capture, _ in string.gmatch(noteInfo, regex) do
+            table.insert(captures, tonumber(capture))
+            --vars.debugText = vars.debugText.." "..tonumber(capture)
+        end
+        table.insert(vars.keyframeNotes, createKeyframeNote(captures[1], captures[2], captures[3], captures[4]))
+        maxKeyframe = math.max(maxKeyframe, captures[3])
+    end
+    vars.numKeyframes = math.max(vars.numKeyframes, maxKeyframe)
+end
+
+function createKeyframeNote(time2, lane2, keyframe2, position2)
+    local keyframeNote = {
+        time = time2,
+        lane = lane2,
+        keyframe = keyframe2,
+        position = position2
+    }
+    return keyframeNote
 end
