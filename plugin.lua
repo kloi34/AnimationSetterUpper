@@ -229,17 +229,9 @@ end
 
 function addKeyframeNotes(vars)
     if not imgui.Button("Add selected notes to pool") then return end
+    --[[
     for i, hitObject in pairs(state.SelectedHitObjects) do
-        --[[
-        local keyframeNote = {
-            time = hitObject.StartTime,
-            lane = hitObject.Lane,
-            keyframe = 1,
-            position = 0
-        }
-        table.insert(vars.keyframeNotes, keyframeNote)
-        --]]
-       table.insert(vars.keyframeNotes, createKeyframeNote(hitObject.StartTime,  hitObject.Lane, 1, 0))
+       table.insert(vars.keyframeNotes, createKeyframeNote(hitObject.StartTime, hitObject.Lane, 1, 0))
     end
     vars.laneCounts = zeros(map.GetKeyCount())
     local hash = {}
@@ -258,6 +250,29 @@ function addKeyframeNotes(vars)
         end
     end
     vars.keyframeNotes = sortByTime(noDuplicates)
+    --]]
+    vars.laneCounts = zeros(map.GetKeyCount())
+    local hash = {}
+    for i = 1, map.GetKeyCount() do
+        table.insert(hash, {})
+    end
+    for i = 1, #vars.keyframeNotes do
+        local note = vars.keyframeNotes[i]
+        local lane = note.lane
+        local time = note.time
+        hash[lane][time] = true
+        vars.laneCounts[lane] = vars.laneCounts[lane] + 1
+    end
+    for i, hitObject in pairs(state.SelectedHitObjects) do
+        local lane = hitObject.Lane
+        local time = hitObject.StartTime
+        if (not hash[lane][time]) then
+            hash[lane][time] = true
+            vars.laneCounts[lane] = vars.laneCounts[lane] + 1
+            table.insert(vars.keyframeNotes, createKeyframeNote(time, lane, 1, 0))
+        end
+    end
+    vars.keyframeNotes = sortByTime(vars.keyframeNotes)
 end
 
 function sortByTime(notes)
@@ -307,7 +322,7 @@ function buttonThatDoesThing(vars)
         local sv = 64 * totalDifference
         local lastTime = vars.keyframeNotes[i - 1].time
         local nextTime =  vars.keyframeNotes[i].time
-        if (lastTime ~= nextTime) and (positionDifference ~= 0) then
+        if lastTime ~= nextTime then
             addSVToList(svs, lastTime, sv)
             addSVToList(svs, (lastTime + 1/64), 0)
         end
@@ -365,16 +380,10 @@ function coordsRelativeToWindow(x, y) return {x + imgui.GetWindowPos()[1], y + i
 function drawKeyframe(vars)
     imgui.NextColumn()
     local drawlist = imgui.GetWindowDrawList()
-    local p1 = coordsRelativeToWindow(270, 410)
-    local p2 = coordsRelativeToWindow(470, 410)
-    local radius = 10
+    --local p1 = coordsRelativeToWindow(270, 410)
+    --local p2 = coordsRelativeToWindow(470, 410)
     local whiteColor = rgbaToUint(255, 255, 255, 255)
     local blueColor = rgbaToUint(53, 200, 255, 255)
-    --[[
-    drawlist.AddCircleFilled(p1, radius, whiteColor)
-    drawlist.AddCircleFilled(p2, radius, whiteColor)
-    drawlist.AddLine(p1, p2, blueColor, 5)
-    --]]
     local noteWidth = 180/map.GetKeyCount() 
     local noteHeight = 20
     for i = 1, #vars.keyframeNotes do
