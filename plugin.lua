@@ -1,4 +1,4 @@
--- AnimationSetterUpper v1.0 (9 Aug 2022)
+-- AnimationSetterUpper v1.0 (13 Aug 2022)
 -- by kloi34
 
 ---------------------------------------------------------------------------------------------------
@@ -94,7 +94,8 @@ function createMenu()
     imgui.PushItemWidth(150)
     displayNoteInfo(vars)
     imgui.NextColumn()
-    --navigateKeyframes(vars)
+    navigateKeyframes(vars)
+    drawKeyframe(vars)
     addSeparator()
     buttonThatDoesThing(vars)
     imgui.TextWrapped(vars.debugText)
@@ -357,4 +358,37 @@ function createKeyframeNote(time2, lane2, keyframe2, position2)
         position = position2
     }
     return keyframeNote
+end
+
+function rgbaToUint(r, g, b, a) return a*16^6 + b*16^4 + g*16^2 + r end
+function coordsRelativeToWindow(x, y) return {x + imgui.GetWindowPos()[1], y + imgui.GetWindowPos()[2]} end
+function drawKeyframe(vars)
+    imgui.NextColumn()
+    local drawlist = imgui.GetWindowDrawList()
+    local p1 = coordsRelativeToWindow(270, 410)
+    local p2 = coordsRelativeToWindow(470, 410)
+    local radius = 10
+    local whiteColor = rgbaToUint(255, 255, 255, 255)
+    local blueColor = rgbaToUint(53, 200, 255, 255)
+    --[[
+    drawlist.AddCircleFilled(p1, radius, whiteColor)
+    drawlist.AddCircleFilled(p2, radius, whiteColor)
+    drawlist.AddLine(p1, p2, blueColor, 5)
+    --]]
+    local noteWidth = 180/map.GetKeyCount() 
+    local noteHeight = 20
+    for i = 1, #vars.keyframeNotes do
+        local note = vars.keyframeNotes[i]
+        if note.keyframe == vars.currentKeyframe then
+            local x1 = 270 + (noteWidth + 5) * (note.lane - 1)
+            local y1 = 410 - (note.position / 2)
+            local x2 = x1 + noteWidth
+            local y2 = y1 - noteHeight
+            local p1 = coordsRelativeToWindow(x1, y1)
+            local p2 = coordsRelativeToWindow(x2, y2)
+            local color = (note.lane == 2 or note.lane == 3) and blueColor or whiteColor
+            drawlist.AddRectFilled(p1, p2, color)
+        end
+    end
+    imgui.NextColumn()
 end
